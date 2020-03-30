@@ -1,8 +1,9 @@
 import Axios, { AxiosInstance } from 'axios';
-import { HashtagResponse, Node } from './types';
+import { MediaResponse, Node, ScrapeType, UserResponse, UserVariables } from './types';
 
 export default class Instagram {
   private _TAG_URL = 'https://www.instagram.com/explore/tags/';
+  private _BASE_URL = 'https://www.instagram.com/';
   private _httpClient: AxiosInstance;
   constructor() {
     this._httpClient = Axios.create({
@@ -13,7 +14,32 @@ export default class Instagram {
     });
   }
 
-  fetchUserMedia(username: string, amount: number) {}
+  async fetchUserMedia(username: string, amount: number): Promise<Node[]> {
+    const nodes: Node[] = [];
+    try {
+      const response = await this._httpClient.get(`${this._BASE_URL}${username}`);
+      const entryData = this._parseResponse(response.data).entry_data;
+      const userResponse: UserResponse = entryData?.ProfilePage[0]?.graphql?.user;
+      const mediaResponse: MediaResponse = userResponse?.edge_owner_to_timeline_media;
+
+      if (!mediaResponse.edges) {
+        throw new Error('Unable to locate edges');
+      }
+
+      mediaResponse.edges.forEach((n: Node) => nodes.push(n));
+
+      const payload = {
+        id: userResponse.id,
+        first: nodes.length.toString(),
+        after: mediaResponse.page_info.end_cursor,
+      };
+
+      await this._getPaginatedMedia(payload, amount, nodes, mediaResponse, ScrapeType.USER);
+    } catch (e) {
+      console.error(e);
+    }
+    return nodes;
+  }
 
   async fetchTagMedia(tag: string, amount: number): Promise<Node[]> {
     const nodes: Node[] = [];
@@ -24,15 +50,15 @@ export default class Instagram {
     try {
       const response = await this._httpClient.get(`${this._TAG_URL}${tag}`);
       const entryData = this._parseResponse(response.data).entry_data;
-      const hashtagResponse: HashtagResponse =
+      const mediaResponse: MediaResponse =
         entryData?.TagPage[0]?.graphql?.hashtag?.edge_hashtag_to_media;
-      if (!hashtagResponse.edges) {
+      if (!mediaResponse.edges) {
         throw new Error('Unable to locate edges');
       }
-      hashtagResponse.edges.forEach((n: Node) => nodes.push(n));
+      mediaResponse.edges.forEach((n: Node) => nodes.push(n));
 
       // If we need to fetch more images, fetch via pagination.
-      await this._getPaginatedTagMedia(tag, amount, nodes, hashtagResponse);
+      await this._getPaginatedMedia(tag, amount, nodes, mediaResponse, ScrapeType.TAG);
     } catch (e) {
       console.error(e);
     }
@@ -40,28 +66,45 @@ export default class Instagram {
     return nodes;
   }
 
-  private async _getPaginatedTagMedia(
-    tag: string,
+  private async _getPaginatedMedia(
+    value: string | UserVariables,
     amount: number,
     nodes: Node[],
-    hashtagResponse: HashtagResponse
+    mediaResponse: MediaResponse,
+    scrapeType: ScrapeType
   ): Promise<void> {
-    let hasNextPage = hashtagResponse.page_info.has_next_page;
-    let maxId = hashtagResponse.page_info.end_cursor;
-    let endpoint = `https://www.instagram.com/explore/tags/${tag}/?__a=1&max_id=${maxId}`;
+    let hasNextPage = mediaResponse.page_info.has_next_page;
+    let maxId = mediaResponse.page_info.end_cursor;
+    let endpoint = this._buildQueryUrl(scrapeType, value, maxId);
     try {
       while (hasNextPage && nodes.length < amount) {
+        console.log(nodes.length);
         const response = await this._httpClient.get(endpoint);
-        const hashTagResponse: HashtagResponse =
-          response.data.graphql?.hashtag?.edge_hashtag_to_media;
-        if (!hashTagResponse.edges) {
+        if (scrapeType === ScrapeType.TAG) {
+          const mediaResponse: MediaResponse =
+            response.data.graphql?.hashtag?.edge_hashtag_to_media;
+        } else {
+          const mediaResponse: MediaResponse =
+            response.data.graphql?.user?.edge_owner_to_timeline_media;
+        }
+
+        if (!mediaResponse.edges) {
           throw new Error('Unable to locate edges');
         }
-        hashtagResponse.edges.forEach((n: Node) => nodes.push(n));
+        mediaResponse.edges.forEach((n: Node) => nodes.push(n));
 
-        hasNextPage = hashtagResponse.page_info.has_next_page;
-        maxId = hashtagResponse.page_info.end_cursor;
-        endpoint = `https://www.instagram.com/explore/tags/${tag}/?__a=1&max_id=${maxId}`;
+        hasNextPage = mediaResponse.page_info.has_next_page;
+        maxId = mediaResponse.page_info.end_cursor;
+
+        // lets do better.
+        if (scrapeType === ScrapeType.USER && typeof value !== 'string') {
+          value = {
+            id: value.id,
+            first: nodes.length.toString(),
+            after: maxId,
+          };
+        }
+        endpoint = this._buildQueryUrl(scrapeType, value, maxId);
       }
     } catch (e) {
       console.error(e);
@@ -79,5 +122,14 @@ export default class Instagram {
       console.error(e);
       return {};
     }
+  }
+
+  private _buildQueryUrl(type: ScrapeType, value: string | Object, maxId: string) {
+    if (type === ScrapeType.USER) {
+      return `https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables=${encodeURIComponent(
+        JSON.stringify(value)
+      )}`;
+    }
+    return `https://www.instagram.com/explore/tags/${value}/?__a=1&max_id=${maxId}`;
   }
 }

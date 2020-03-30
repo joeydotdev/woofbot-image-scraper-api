@@ -1,6 +1,6 @@
 export type Node = {
   comments_disabled: boolean;
-  __typename: 'GraphImage' | 'Something';
+  __typename: 'GraphImage' | 'GraphSidecar' | 'GraphVideo';
   id: string;
   shortcode: string;
   edge_media_to_comment: {
@@ -12,15 +12,13 @@ export type Node = {
     width: number;
   };
   display_url: string;
-  edge_liked_by: {
-    count: number;
-  };
-  edge_media_preview_like: {
-    count: number;
-  };
+  edge_liked_by: Count;
+  edge_media_preview_like: Count;
   owner: {
     id: string;
+    username?: string;
   };
+  location?: Object;
   thumbnail_src: string;
   thumbnail_resources: Thumbnail[];
   is_video: boolean;
@@ -39,11 +37,53 @@ type Thumbnail = {
   config_height: number;
 };
 
-export type HashtagResponse = {
+export enum ScrapeType {
+  TAG = 'tag',
+  USER = 'user',
+}
+
+export type MediaResponse = {
   count: number;
   page_info: {
     has_next_page: boolean;
     end_cursor: string;
   };
   edges: Node[];
+};
+
+export type Count = {
+  count: number;
+};
+
+export type UserResponse = {
+  blocked_by_viewer: boolean;
+  restricted_by_viewer?: any;
+  country_block: boolean;
+  external_url?: any;
+  external_url_linkshimmed?: any;
+  edge_followed_by: Count;
+  followed_by_viewer: boolean;
+  edge_follow: Count;
+  follows_viewer: boolean;
+  full_name: string;
+  has_ar_effects: boolean;
+  has_channel: boolean;
+  has_blocked_viewer: boolean;
+  highlight_reel_count: number;
+  has_requested_viewer: boolean;
+  id: string;
+  is_business_account: boolean;
+  is_joined_recently: boolean;
+  business_category_name: string;
+  category_id: string;
+  overall_category_name?: any;
+  is_private: boolean;
+  is_verified: boolean;
+  edge_owner_to_timeline_media: MediaResponse;
+};
+
+export type UserVariables = {
+  id: string;
+  first: string;
+  after: string;
 };
