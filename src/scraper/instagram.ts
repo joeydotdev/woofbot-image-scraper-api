@@ -1,5 +1,5 @@
 import Axios, { AxiosInstance } from 'axios';
-import { MediaResponse, Node, ScrapeType, UserResponse, UserVariables } from './types';
+import { MediaResponse, Node, UserResponse, ProfilePayload } from './types';
 
 export default class Instagram {
   private _TAG_URL = 'https://www.instagram.com/explore/tags/';
@@ -25,7 +25,6 @@ export default class Instagram {
       if (!mediaResponse.edges) {
         throw new Error('Unable to locate edges');
       }
-
       mediaResponse.edges.forEach((n: Node) => nodes.push(n));
 
       const payload = {
@@ -34,7 +33,7 @@ export default class Instagram {
         after: mediaResponse.page_info.end_cursor,
       };
 
-      await this._getPaginatedMedia(payload, amount, nodes, mediaResponse, ScrapeType.USER);
+      await this._getPaginatedMedia(payload, amount, nodes, mediaResponse);
     } catch (e) {
       console.error(e);
     }
@@ -58,7 +57,7 @@ export default class Instagram {
       mediaResponse.edges.forEach((n: Node) => nodes.push(n));
 
       // If we need to fetch more images, fetch via pagination.
-      await this._getPaginatedMedia(tag, amount, nodes, mediaResponse, ScrapeType.TAG);
+      await this._getPaginatedMedia(tag, amount, nodes, mediaResponse);
     } catch (e) {
       console.error(e);
     }
@@ -67,55 +66,52 @@ export default class Instagram {
   }
 
   private async _getPaginatedMedia(
-    value: string | UserVariables,
+    value: string | ProfilePayload,
     amount: number,
     nodes: Node[],
     mediaResponse: MediaResponse,
-    scrapeType: ScrapeType
   ): Promise<void> {
     let hasNextPage = mediaResponse.page_info.has_next_page;
     let maxId = mediaResponse.page_info.end_cursor;
-    let endpoint = this._buildQueryUrl(scrapeType, value, maxId);
+    let endpoint = this._buildQueryUrl(value, maxId);
     try {
       while (hasNextPage && nodes.length < amount) {
-        console.log(nodes.length);
+        console.log(`Fetched pictures: ${nodes.length}/${amount}`);
         const response = await this._httpClient.get(endpoint);
-        if (scrapeType === ScrapeType.TAG) {
-          const mediaResponse: MediaResponse =
+        let mediaResponse = response.data.data?.user?.edge_owner_to_timeline_media;
+        if (typeof value === 'string') {
+          mediaResponse =
             response.data.graphql?.hashtag?.edge_hashtag_to_media;
-        } else {
-          const mediaResponse: MediaResponse =
-            response.data.graphql?.user?.edge_owner_to_timeline_media;
         }
 
         if (!mediaResponse.edges) {
           throw new Error('Unable to locate edges');
         }
-        mediaResponse.edges.forEach((n: Node) => nodes.push(n));
 
+        mediaResponse.edges.forEach((n: Node) => nodes.push(n));
         hasNextPage = mediaResponse.page_info.has_next_page;
         maxId = mediaResponse.page_info.end_cursor;
 
-        // lets do better.
-        if (scrapeType === ScrapeType.USER && typeof value !== 'string') {
+        if (typeof value !== 'string') {
           value = {
             id: value.id,
             first: nodes.length.toString(),
             after: maxId,
           };
         }
-        endpoint = this._buildQueryUrl(scrapeType, value, maxId);
+        endpoint = this._buildQueryUrl(value, maxId);
       }
     } catch (e) {
       console.error(e);
     }
+    console.log(`Fetched pictures: ${nodes.length}/${amount}`);
   }
 
   private _parseResponse(html: string) {
     try {
-      const data = html.match(/window\._sharedData\s?=\s?({.+);<\/script>/);
-      if (!data || data.length === 0) {
-        return {};
+      const data = html.match(/window\._sharedData\s?=\s?({.+);<\/script>/) || [];
+      if (data.length === 0) {
+        throw new Error('Unable to parse page');
       }
       return JSON.parse(data[1]);
     } catch (e) {
@@ -124,8 +120,8 @@ export default class Instagram {
     }
   }
 
-  private _buildQueryUrl(type: ScrapeType, value: string | Object, maxId: string) {
-    if (type === ScrapeType.USER) {
+  private _buildQueryUrl(value: string | ProfilePayload, maxId: string) {
+    if (typeof value !== 'string') {
       return `https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables=${encodeURIComponent(
         JSON.stringify(value)
       )}`;

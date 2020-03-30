@@ -37,11 +37,6 @@ type Thumbnail = {
   config_height: number;
 };
 
-export enum ScrapeType {
-  TAG = 'tag',
-  USER = 'user',
-}
-
 export type MediaResponse = {
   count: number;
   page_info: {
@@ -82,8 +77,4 @@ export type UserResponse = {
   edge_owner_to_timeline_media: MediaResponse;
 };
 
-export type UserVariables = {
-  id: string;
-  first: string;
-  after: string;
-};
+export type ProfilePayload = { id: string, first: string, after: string };
