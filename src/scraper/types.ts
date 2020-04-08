@@ -37,13 +37,15 @@ type Thumbnail = {
   config_height: number;
 };
 
+type NodeArray = Array<{ node: Node }>;
+
 export type MediaResponse = {
   count: number;
   page_info: {
     has_next_page: boolean;
     end_cursor: string;
   };
-  edges: Node[];
+  edges: NodeArray;
 };
 
 export type Count = {
@@ -77,4 +79,4 @@ export type UserResponse = {
   edge_owner_to_timeline_media: MediaResponse;
 };
 
-export type ProfilePayload = { id: string, first: string, after: string };
+export type ProfilePayload = { id: string; first: string; after: string };
