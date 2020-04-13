@@ -24,16 +24,21 @@ const handleMessage = () => {
 const executeMessage = () => {
   return mergeMap((message: Message) => {
     return defer(async () => {
+      const response: { scrapeType: string, nodes?: Node[] } = { scrapeType: message.attributes.scrapeType };
+
       if (message.attributes.scrapeType === 'profile') {
-        return await instagramClient.fetchUserMedia(
+        response.nodes = await instagramClient.fetchUserMedia(
           message.attributes.scrapeValue,
           parseInt(message.attributes.scrapeAmount)
         );
       }
-      return await instagramClient.fetchTagMedia(
+
+      response.nodes = await instagramClient.fetchTagMedia(
         message.attributes.scrapeValue,
         parseInt(message.attributes.scrapeAmount)
       );
+
+      return response;
     });
   });
 };
@@ -50,7 +55,9 @@ const filterMessage = () => {
 
 messageEvent
   .pipe(handleMessage(), filterMessage(), executeMessage())
-  .subscribe(async (result: Node[]) => {
-    const buffer = Buffer.from(JSON.stringify(result));
-    await pubSubClient.topic(IMAGE_CLASSIFICATION_TOPIC).publish(buffer);
+  .subscribe(async (result: { scrapeType: string, nodes?: Node[] }) => {
+    const buffer = Buffer.from(JSON.stringify(result.nodes));
+    await pubSubClient.topic(IMAGE_CLASSIFICATION_TOPIC).publish(buffer, {
+      scrapeType: result.scrapeType
+    });
   });
