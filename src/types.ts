@@ -1,9 +1,9 @@
-import { Message as GoogleMessage } from "@google-cloud/pubsub";
+import { Message as GoogleMessage } from '@google-cloud/pubsub';
 
-export interface Message extends GoogleMessage {
+export type Message = GoogleMessage & {
   attributes: {
     scrapeValue: string;
     scrapeAmount: string;
     scrapeType: string;
-  }
-}
+  };
+};
