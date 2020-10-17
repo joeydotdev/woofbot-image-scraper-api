@@ -1,5 +1,5 @@
 import { PubSub } from '@google-cloud/pubsub';
-import { defer, fromEvent } from 'rxjs';
+import { fromEvent } from 'rxjs';
 import { filter, mergeMap, tap } from 'rxjs/operators';
 import Instagram from './scraper/instagram';
 import { Node } from './scraper/types';
@@ -13,8 +13,9 @@ const IMAGE_CLASSIFICATION_TOPIC =
 const pubSubClient = new PubSub({ keyFile: './woofbot.json' });
 const instagramClient = new Instagram();
 const subscription = pubSubClient.subscription(SCRAPE_SUBSCRIPTION);
+const message$ = fromEvent<Message>(subscription, 'message');
 
-fromEvent<Message>(subscription, 'message')
+message$
   .pipe(
     tap((message) => message.ack()),
     filter((message) =>
