@@ -1,6 +1,6 @@
 import { PubSub } from '@google-cloud/pubsub';
 import { fromEvent } from 'rxjs';
-import { filter, mergeMap, tap } from 'rxjs/operators';
+import { mergeMap, tap } from 'rxjs/operators';
 import Instagram from './scraper/instagram';
 import { Node } from './scraper/types';
 import { Message } from './types';
@@ -18,13 +18,6 @@ const message$ = fromEvent<Message>(subscription, 'message');
 message$
   .pipe(
     tap((message) => message.ack()),
-    filter((message) =>
-      Boolean(
-        message.attributes.scrapeAmount &&
-          message.attributes.scrapeType &&
-          message.attributes.scrapeValue
-      )
-    ),
     mergeMap(async (message: Message) => ({
       scrapeType: message.attributes.scrapeType,
       nodes:
